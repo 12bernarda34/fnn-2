@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JsPsych Video Experiment</title>
+    <link href="jspsych/jspsych.css" rel="stylesheet" type="text/css" />
+    <script src="jspsych/jspsych.js"></script>
+    <script src="jspsych/plugin-html-keyboard-response.js"></script>
+    <script src="jspsych/plugin-html-button-response.js"></script>
+    <script src="jspsych/plugin-preload.js"></script>
+    <script src="jspsych/plugin-webgazer-init-camera.js"></script>
+    <script src="jspsych/plugin-webgazer-calibrate.js"></script>
+    <script src="jspsych/plugin-webgazer-validate.js"></script>
+    <script src="jspsych/webgazer.js"></script>
+    <script src="jspsych/extension-webgazer.js"></script>
+    <style>
+      .jspsych-btn {
+        margin-bottom: 10px;
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .fixation-star {
+        width: 100px;
+        height: 100px;
+        animation: spin 1.5s linear infinite;
+      }
+    </style>
+  </head>
+  <body></body>
+  <script>
+    const jsPsych = initJsPsych({
+      extensions: [
+        { type: jsPsychExtensionWebgazer }
+      ],
+      on_finish: () => jsPsych.data.displayData()
+    });
+
+    const videoFiles = [
+      'vid/introduction.mp4',
+      'vid/bee_positive.mp4',
+      'vid/bee_negation.mp4',
+      'vid/bee_maybe.mp4',
+      'vid/bee_gleebly.mp4'
+    ];
+
+    // ---------- Preload ----------
+    const preload = {
+      type: jsPsychPreload,
+      video: videoFiles,
+      images: ['img/star.png']
+    };
+
+    // ---------- Intro ----------
+    const welcome = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: '<p>Welcome to the experiment! Press any key to begin.</p>'
+    };
+
+    // ---------- Camera setup ----------
+    const cameraInstructions = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p>In order to participate you must allow the experiment to use your camera for eye tracking.</p>
+        <p>You will be prompted to do this on the next screen.</p>
+        <p>If you do not wish to allow use of your camera, you cannot participate in this experiment.</p>
+        <p>It may take up to 30 seconds for the camera to initialize after you give permission.</p>
+      `,
+      choices: ['Got it']
+    };
+
+    const initCamera = {
+      type: jsPsychWebgazerInitCamera
+    };
+
+    // ---------- Calibration ----------
+    const calibrationInstructions = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p>Now you'll calibrate the eye tracker, so the software can use the image of your eyes to predict where you're looking.</p>
+        <p>A series of dots will appear on the screen. Look at each dot and click on it.</p>
+      `,
+      choices: ['Got it']
+    };
+
+    const calibration = {
+      type: jsPsychWebgazerCalibrate,
+      calibration_points: [
+        [25, 25], [75, 25], [50, 50], [25, 75], [75, 75]
+      ],
+      repetitions_per_point: 2,
+      randomize_calibration_order: true
+    };
+
+    // ---------- Validation ----------
+    const validationInstructions = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p>Now we'll measure the accuracy of the calibration.</p>
+        <p>Look at each dot as it appears on the screen.</p>
+        <p style="font-weight:bold;">You do not need to click on the dots this time.</p>
+      `,
+      choices: ['Got it'],
+      post_trial_gap: 1000
+    };
+
+    const validation = {
+      type: jsPsychWebgazerValidate,
+      validation_points: [
+        [25, 25], [75, 25], [50, 50], [25, 75], [75, 75]
+      ],
+      roi_radius: 200,
+      time_to_saccade: 1000,
+      validation_duration: 2000,
+      data: { task: 'validate' }
+    };
+
+    // If accuracy is too low, recalibrate once automatically
+    const recalibrateInstructions = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: `
+        <p>The accuracy of the calibration is a little lower than we'd like.</p>
+        <p>Let's try calibrating one more time.</p>
+      `,
+      choices: ['OK']
+    };
+
+    const recalibrate = {
+      timeline: [recalibrateInstructions, calibration, validationInstructions, validation],
+      conditional_function: function () {
+        const validationData = jsPsych.data.get().filter({ task: 'validate' }).values();
+        const last = validationData[validationData.length - 1];
+        return last.percent_in_roi.some((x) => x < 50);
+      }
+    };
+
+    const calibrationDone = {
+      type: jsPsychHtmlButtonResponse,
+      stimulus: '<p>Great, we\'re done with calibration!</p>',
+      choices: ['OK']
+    };
+
+    // ---------- Task instructions ----------
+    const instructions = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: '<p>After each video finishes, press the spacebar to continue. Press any key to start!</p>'
+    };
+
+    // ---------- Fixation (spinning star) ----------
+    // Shown before each video to draw participants' gaze to the center of the screen.
+    const fixationDuration = 2000; // ms
+
+    function makeFixationTrial(video) {
+      return {
+        type: jsPsychHtmlKeyboardResponse,
+        stimulus: `
+          <div style="text-align:center;">
+            <img src="img/star.png" class="fixation-star">
+          </div>
+        `,
+        choices: "NO_KEYS",
+        trial_duration: fixationDuration,
+        data: { task: 'fixation', video_file: video }
+      };
+    }
+
+    // ---------- Video trials with gaze tracking ----------
+    const videoTrials = videoFiles.map((video) => ({
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: `
+        <div style="text-align:center;">
+          <video id="stim-video" autoplay preload="auto" playsinline width="800" style="max-width:100%;">
+            <source src="${video}" type="video/mp4">
+            Your browser does not support HTML video.
+          </video>
+        </div>
+      `,
+      prompt: '<p>Press the spacebar after the video finishes.</p>',
+      choices: [' '],
+      extensions: [
+        {
+          type: jsPsychExtensionWebgazer,
+          params: { targets: ['#stim-video'] }
+        }
+      ],
+      data: { task: 'video', video_file: video }
+    }));
+
+    // Interleave: fixation, video, fixation, video, ...
+    const videoBlock = videoFiles.flatMap((video, i) => [
+      makeFixationTrial(video),
+      videoTrials[i]
+    ]);
+
+    // ---------- Goodbye ----------
+    const goodbye = {
+      type: jsPsychHtmlKeyboardResponse,
+      stimulus: '<p>Thank you. The experiment is complete.</p><p>Press any key to finish.</p>'
+    };
+
+    const timeline = [
+      preload,
+      welcome,
+      cameraInstructions,
+      initCamera,
+      calibrationInstructions,
+      calibration,
+      validationInstructions,
+      validation,
+      recalibrate,
+      calibrationDone,
+      instructions,
+      ...videoBlock,
+      goodbye
+    ];
+
+    jsPsych.run(timeline);
+  </script>
+</html>
