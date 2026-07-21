@@ -29,6 +29,11 @@
         height: 100px;
         animation: spin 1.5s linear infinite;
       }
+
+      .lab-footer {
+        color: grey;
+        margin-top: 20px;
+      }
     </style>
   </head>
   <body></body>
@@ -37,7 +42,6 @@
       extensions: [
         { type: jsPsychExtensionWebgazer }
       ],
-      on_finish: () => jsPsych.data.displayData()
     });
 
     const videoFiles = [
@@ -47,6 +51,11 @@
       'vid/bee_maybe.mp4',
       'vid/bee_gleebly.mp4'
     ];
+
+    // Appends the grey lab footer below a given instruction HTML string
+    function withLabFooter(html) {
+      return `${html}<p class="lab-footer">NYU Child Language Lab</p>`;
+    }
 
     // ---------- Preload ----------
     const preload = {
@@ -58,18 +67,18 @@
     // ---------- Intro ----------
     const welcome = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: '<p>Welcome to the experiment! Press any key to begin.</p>'
+      stimulus: withLabFooter('<p>Welcome to the experiment! Press any key to begin.</p>')
     };
 
     // ---------- Camera setup ----------
     const cameraInstructions = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: `
+      stimulus: withLabFooter(`
         <p>In order to participate you must allow the experiment to use your camera for eye tracking.</p>
         <p>You will be prompted to do this on the next screen.</p>
         <p>If you do not wish to allow use of your camera, you cannot participate in this experiment.</p>
-        <p>It may take up to 30 seconds for the camera to initialize after you give permission. Please make sure your face is clearly visible and well lit. </p>
-      `,
+        <p>It may take up to 30 seconds for the camera to initialize after you give permission.</p>
+      `),
       choices: ['Got it']
     };
 
@@ -80,10 +89,10 @@
     // ---------- Calibration ----------
     const calibrationInstructions = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: `
+      stimulus: withLabFooter(`
         <p>Now you'll calibrate the eye tracker, so the software can use the image of your eyes to predict where you're looking.</p>
         <p>A series of dots will appear on the screen. Look at each dot and click on it.</p>
-      `,
+      `),
       choices: ['Got it']
     };
 
@@ -99,11 +108,11 @@
     // ---------- Validation ----------
     const validationInstructions = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: `
+      stimulus: withLabFooter(`
         <p>Now we'll measure the accuracy of the calibration.</p>
         <p>Look at each dot as it appears on the screen.</p>
         <p style="font-weight:bold;">You do not need to click on the dots this time.</p>
-      `,
+      `),
       choices: ['Got it'],
       post_trial_gap: 1000
     };
@@ -122,10 +131,10 @@
     // If accuracy is too low, recalibrate once automatically
     const recalibrateInstructions = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: `
+      stimulus: withLabFooter(`
         <p>The accuracy of the calibration is a little lower than we'd like.</p>
         <p>Let's try calibrating one more time.</p>
-      `,
+      `),
       choices: ['OK']
     };
 
@@ -140,14 +149,14 @@
 
     const calibrationDone = {
       type: jsPsychHtmlButtonResponse,
-      stimulus: '<p>Great, we\'re done with calibration!</p>',
+      stimulus: withLabFooter('<p>Great, we\'re done with calibration!</p>'),
       choices: ['OK']
     };
 
     // ---------- Task instructions ----------
     const instructions = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: '<p>After each video finishes, press the spacebar to continue. Press any key to start!</p>'
+      stimulus: withLabFooter('<p>After each video finishes, press the spacebar to continue. Press any key to start!</p>')
     };
 
     // ---------- Fixation (spinning star) ----------
@@ -199,7 +208,7 @@
     // ---------- Goodbye ----------
     const goodbye = {
       type: jsPsychHtmlKeyboardResponse,
-      stimulus: '<p>Thank you. The experiment is complete.</p><p>Press any key to finish.</p>'
+      stimulus: withLabFooter('<p>Thank you. The experiment is complete.</p><p>Press any key to finish.</p>')
     };
 
     const timeline = [
