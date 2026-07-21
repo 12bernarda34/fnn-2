@@ -31,12 +31,6 @@
         animation: spin 1.5s linear infinite;
       }
 
-      .calib-image {
-        width: 110px;
-        height: 110px;
-        object-fit: contain;
-      }
-
       .lab-footer {
         color: grey;
         font-size: 14px;
@@ -122,15 +116,16 @@
       return {
         type: jsPsychHtmlButtonResponse,
         stimulus: '',
-        choices: [`<img src="${imgSrc}" class="calib-image" alt="calibration target">`],
-        button_html: '<button class="calib-btn">%choice%</button>',
+        choices: [''],
         on_load: function () {
-          const btn = document.querySelector('.calib-btn');
+          const btn = document.querySelector('.jspsych-btn');
           btn.style.position = 'absolute';
           btn.style.left = x + '%';
           btn.style.top = y + '%';
           btn.style.transform = 'translate(-50%, -50%)';
-          btn.style.background = 'none';
+          btn.style.width = '110px';
+          btn.style.height = '110px';
+          btn.style.background = `url('${imgSrc}') no-repeat center / contain`;
           btn.style.border = 'none';
           btn.style.padding = '0';
           btn.style.cursor = 'pointer';
