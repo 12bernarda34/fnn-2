@@ -54,10 +54,8 @@
       'vid/bee_gleebly.mp4'
     ];
 
-    // Grey lab-name footer appended to the bottom of every instruction screen.
     const labFooter = '<p class="lab-footer">NYU Child Language Lab</p>';
 
-    // ---------- Preload ----------
     const preload = {
       type: jsPsychPreload,
       video: videoFiles,
@@ -65,13 +63,11 @@
       audio: ['snd/ding.mp3', 'snd/sparkle.mp3']
     };
 
-    // ---------- Intro ----------
     const welcome = {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: '<p>Welcome to the experiment! Press any key to begin.</p>' + labFooter
     };
 
-    // ---------- Camera setup ----------
     const cameraInstructions = {
       type: jsPsychHtmlButtonResponse,
       stimulus: `
@@ -87,7 +83,6 @@
       type: jsPsychWebgazerInitCamera
     };
 
-    // ---------- Calibration ----------
     const calibrationInstructions = {
       type: jsPsychHtmlButtonResponse,
       stimulus: `
@@ -97,10 +92,6 @@
       choices: ['Got it']
     };
 
-    // ---------- Custom "fruit" calibration (images + sound instead of dots) ----------
-    // Each entry is one calibration target: where it sits on screen (as a % of
-    // width/height, same convention the built-in plugin used) and which fruit
-    // image to show there.
     const calibrationTargets = [
       { x: 25, y: 25, img: 'img/apple.png' },
       { x: 75, y: 25, img: 'img/kiwi.png' },
@@ -109,9 +100,6 @@
       { x: 75, y: 75, img: 'img/strawberry.png' }
     ];
 
-    // Builds one clickable-fruit calibration trial at position (x%, y%).
-    // Clicking it plays ding.mp3 and registers the click as a calibration
-    // point with WebGazer, exactly like clicking a dot would.
     function makeCalibrationPoint(x, y, imgSrc) {
       return {
         type: jsPsychHtmlButtonResponse,
@@ -129,12 +117,11 @@
           btn.style.border = 'none';
           btn.style.padding = '0';
           btn.style.cursor = 'pointer';
+          btn.style.zIndex = '2147483647';
         },
         on_finish: function () {
           const ding = new Audio('snd/ding.mp3');
-          ding.play().catch(() => {}); // ignore autoplay-block errors
-          // Convert the percentage position to pixel coordinates and tell
-          // WebGazer this is a calibration event, same as a dot click would.
+          ding.play().catch(() => {});
           const px = Math.round((x / 100) * window.innerWidth);
           const py = Math.round((y / 100) * window.innerHeight);
           jsPsych.extensions.webgazer.calibratePoint(px, py);
@@ -142,9 +129,6 @@
       };
     }
 
-    // Repeats the target set (default: 2x, same as the original
-    // repetitions_per_point) and shuffles the order, then builds a trial
-    // for each one.
     function buildCalibrationTimeline(targets, repetitions = 2, randomize = true) {
       let points = [];
       for (let r = 0; r < repetitions; r++) points = points.concat(targets);
@@ -156,7 +140,6 @@
       timeline: buildCalibrationTimeline(calibrationTargets, 2, true)
     };
 
-    // ---------- Validation ----------
     const validationInstructions = {
       type: jsPsychHtmlButtonResponse,
       stimulus: `
@@ -179,19 +162,12 @@
       data: { task: 'validate' }
     };
 
-    // Calibration relies on the live webgazer video feed, and the
-    // camera-setup step leaves webgazer paused when it finishes. The
-    // built-in webgazer-calibrate plugin normally handles this by calling
-    // resume()/pause() around itself; our custom fruit-click calibration
-    // needs to do the same, or every click trains the model on a frozen
-    // face reading instead of the current one.
     const calibrationAndValidation = {
       timeline: [calibration, validationInstructions, validation],
       on_timeline_start: () => jsPsych.extensions.webgazer.resume(),
       on_timeline_finish: () => jsPsych.extensions.webgazer.pause()
     };
 
-    // If accuracy is too low, recalibrate once automatically
     const recalibrateInstructions = {
       type: jsPsychHtmlButtonResponse,
       stimulus: `
@@ -208,9 +184,6 @@
         const last = validationData[validationData.length - 1];
         return last.percent_in_roi.some((x) => x < 50);
       },
-      // Clear out the first (bad) round of calibration points before
-      // collecting a new set, so the two rounds don't get combined into
-      // one increasingly degenerate regression model.
       on_timeline_start: () => jsPsych.extensions.webgazer.resetCalibration()
     };
 
@@ -220,18 +193,21 @@
       choices: ['OK']
     };
 
-    // ---------- Task instructions ----------
     const instructions = {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: '<p>After each video finishes, press the spacebar to continue. Press any key to start!</p>' + labFooter
     };
 
-    // ---------- Fixation (spinning star) ----------
-    // Shown before each video to draw participants' gaze to the center of the screen.
     const fixationDuration = 2000; // ms
 
     function makeFixationTrial(video) {
       let sparkle;
+      const stopSparkle = () => {
+        if (sparkle) {
+          sparkle.pause();
+          sparkle.currentTime = 0;
+        }
+      };
       return {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -243,19 +219,14 @@
         trial_duration: fixationDuration,
         on_load: function () {
           sparkle = new Audio('snd/sparkle.mp3');
-          sparkle.play().catch(() => {}); // ignore autoplay-block errors
+          sparkle.play().catch(() => {});
+          setTimeout(stopSparkle, fixationDuration);
         },
-        on_finish: function () {
-          // sparkle.mp3 is longer than the fixation window, so stop it here
-          // or it keeps playing into the video that follows.
-          sparkle.pause();
-          sparkle.currentTime = 0;
-        },
+        on_finish: stopSparkle,
         data: { task: 'fixation', video_file: video }
       };
     }
 
-    // ---------- Video trials with gaze tracking ----------
     const videoTrials = videoFiles.map((video) => ({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
@@ -277,10 +248,6 @@
       data: { task: 'video', video_file: video }
     }));
 
-    // Interleave: fixation, video, fixation, video, ...
-    // Wrapped so webgazer's tracking loop is actually running during the
-    // videos - it's left paused after calibration/validation, and nothing
-    // else in the timeline turns it back on.
     const videoBlock = {
       timeline: videoFiles.flatMap((video, i) => [
         makeFixationTrial(video),
@@ -290,10 +257,6 @@
       on_timeline_finish: () => jsPsych.extensions.webgazer.pause()
     };
 
-    // ---------- Save data to OSF via DataPipe ----------
-    // Replace this with the experiment ID from your DataPipe dashboard
-    // (pipe.jspsych.org -> your experiment -> "Experiment ID").
-    // This is NOT the same as your OSF project ID.
     const dataPipeExperimentId = 'WEbgGWgBVtbp';
 
     const saveDataPipe = {
@@ -304,7 +267,6 @@
       data_string: () => jsPsych.data.get().csv()
     };
 
-    // ---------- Goodbye ----------
     const goodbye = {
       type: jsPsychHtmlKeyboardResponse,
       stimulus: '<p>Thank you. The experiment is complete.</p><p>Press any key to finish.</p>' + labFooter
