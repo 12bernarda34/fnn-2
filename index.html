@@ -231,6 +231,7 @@
     const fixationDuration = 2000; // ms
 
     function makeFixationTrial(video) {
+      let sparkle;
       return {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
@@ -241,8 +242,14 @@
         choices: "NO_KEYS",
         trial_duration: fixationDuration,
         on_load: function () {
-          const sparkle = new Audio('snd/sparkle.mp3');
+          sparkle = new Audio('snd/sparkle.mp3');
           sparkle.play().catch(() => {}); // ignore autoplay-block errors
+        },
+        on_finish: function () {
+          // sparkle.mp3 is longer than the fixation window, so stop it here
+          // or it keeps playing into the video that follows.
+          sparkle.pause();
+          sparkle.currentTime = 0;
         },
         data: { task: 'fixation', video_file: video }
       };
