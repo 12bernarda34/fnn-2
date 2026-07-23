@@ -31,6 +31,11 @@
         animation: spin 1.5s linear infinite;
       }
 
+      @keyframes spin-pinwheel {
+        from { transform: translate(-50%, -50%) rotate(0deg); }
+        to { transform: translate(-50%, -50%) rotate(360deg); }
+      }
+
       .lab-footer {
         color: grey;
         font-size: 14px;
@@ -59,7 +64,7 @@
     const preload = {
       type: jsPsychPreload,
       video: videoFiles,
-      images: ['img/star.png', 'img/apple.png', 'img/kiwi.png', 'img/blueberry.png', 'img/strawberry.png', 'img/lemon.png'],
+      images: ['img/star.png', 'img/pinwheel.png'],
       audio: ['snd/ding.mp3', 'snd/sparkle.mp3']
     };
 
@@ -92,15 +97,17 @@
       choices: ['Got it']
     };
 
+    const calibrationImage = 'img/pinwheel.png';
+
     const calibrationTargets = [
-      { x: 25, y: 25, img: 'img/apple.png' },
-      { x: 75, y: 25, img: 'img/kiwi.png' },
-      { x: 50, y: 50, img: 'img/lemon.png' },
-      { x: 25, y: 75, img: 'img/blueberry.png' },
-      { x: 75, y: 75, img: 'img/strawberry.png' }
+      { x: 25, y: 25 },
+      { x: 75, y: 25 },
+      { x: 50, y: 50 },
+      { x: 25, y: 75 },
+      { x: 75, y: 75 }
     ];
 
-    function makeCalibrationPoint(x, y, imgSrc) {
+    function makeCalibrationPoint(x, y) {
       return {
         type: jsPsychHtmlButtonResponse,
         stimulus: '',
@@ -110,13 +117,13 @@
           btn.style.position = 'absolute';
           btn.style.left = x + '%';
           btn.style.top = y + '%';
-          btn.style.transform = 'translate(-50%, -50%)';
-          btn.style.width = '110px';
-          btn.style.height = '110px';
-          btn.style.background = `url('${imgSrc}') no-repeat center / contain`;
+          btn.style.width = '170px';
+          btn.style.height = '170px';
+          btn.style.background = `url('${calibrationImage}') no-repeat center / 110px 110px`;
           btn.style.border = 'none';
           btn.style.padding = '0';
           btn.style.cursor = 'pointer';
+          btn.style.animation = 'spin-pinwheel 2s linear infinite';
           btn.style.zIndex = '2147483647';
         },
         on_finish: function () {
@@ -129,11 +136,23 @@
       };
     }
 
+    function shuffleNoAdjacentRepeats(points) {
+      let shuffled = points;
+      for (let attempt = 0; attempt < 100; attempt++) {
+        shuffled = jsPsych.randomization.shuffle(points);
+        const hasAdjacentRepeat = shuffled.some(
+          (point, i) => i > 0 && point.x === shuffled[i - 1].x && point.y === shuffled[i - 1].y
+        );
+        if (!hasAdjacentRepeat) break;
+      }
+      return shuffled;
+    }
+
     function buildCalibrationTimeline(targets, repetitions = 2, randomize = true) {
       let points = [];
       for (let r = 0; r < repetitions; r++) points = points.concat(targets);
-      if (randomize) points = jsPsych.randomization.shuffle(points);
-      return points.map((t) => makeCalibrationPoint(t.x, t.y, t.img));
+      if (randomize) points = shuffleNoAdjacentRepeats(points);
+      return points.map((t) => makeCalibrationPoint(t.x, t.y));
     }
 
     const calibration = {
@@ -238,7 +257,26 @@
         </div>
       `,
       prompt: '<p>Press the spacebar after the video finishes.</p>',
-      choices: [' '],
+      choices: "NO_KEYS",
+      on_load: function () {
+        const start_time = performance.now();
+        const videoEl = document.getElementById('stim-video');
+        videoEl.addEventListener('ended', function onEnded() {
+          videoEl.removeEventListener('ended', onEnded);
+          jsPsych.pluginAPI.getKeyboardResponse({
+            callback_function: (info) => {
+              jsPsych.finishTrial({
+                rt: Math.round(performance.now() - start_time),
+                response: info.key
+              });
+            },
+            valid_responses: [' '],
+            rt_method: 'performance',
+            persist: false,
+            allow_held_key: false
+          });
+        });
+      },
       extensions: [
         {
           type: jsPsychExtensionWebgazer,
