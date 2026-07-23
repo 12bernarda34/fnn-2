@@ -61,6 +61,23 @@
 
     const labFooter = '<p class="lab-footer">NYU Child Language Lab</p>';
 
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let dingBuffer = null;
+    fetch('snd/ding.mp3')
+      .then((res) => res.arrayBuffer())
+      .then((data) => audioCtx.decodeAudioData(data))
+      .then((buffer) => { dingBuffer = buffer; })
+      .catch(() => {});
+
+    function playDing() {
+      if (!dingBuffer) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const source = audioCtx.createBufferSource();
+      source.buffer = dingBuffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
+    }
+
     const preload = {
       type: jsPsychPreload,
       video: videoFiles,
@@ -127,8 +144,7 @@
           btn.style.zIndex = '2147483647';
         },
         on_finish: function () {
-          const ding = new Audio('snd/ding.mp3');
-          ding.play().catch(() => {});
+          playDing();
           const px = Math.round((x / 100) * window.innerWidth);
           const py = Math.round((y / 100) * window.innerHeight);
           jsPsych.extensions.webgazer.calibratePoint(px, py);
