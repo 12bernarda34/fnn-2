@@ -199,8 +199,14 @@
 
     const calibrationAndValidation = {
       timeline: [calibration, validationInstructions, validation],
-      on_timeline_start: () => jsPsych.extensions.webgazer.resume(),
-      on_timeline_finish: () => jsPsych.extensions.webgazer.pause()
+      on_timeline_start: () => {
+        jsPsych.extensions.webgazer.resume();
+        jsPsych.extensions.webgazer.showPredictions();
+      },
+      on_timeline_finish: () => {
+        jsPsych.extensions.webgazer.pause();
+        jsPsych.extensions.webgazer.hidePredictions();
+      }
     };
 
     const recalibrateInstructions = {
@@ -344,3 +350,4 @@
     jsPsych.run(timeline);
   </script>
 </html>
+```
