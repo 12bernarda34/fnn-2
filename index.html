@@ -1,3 +1,6 @@
+Nothing's changed since the last one I gave you — that's still the current version. Here it is again:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -268,6 +271,78 @@
       };
     }
 
+    // ---------- Regions of interest: left / middle / right thirds of the video ----------
+    // Splits the #stim-video bounding box (recorded by the webgazer extension
+    // as webgazer_targets) into three equal horizontal bands, restricted to
+    // the vertical band where the animals actually sit (below the awning/
+    // light-beam area at the top - approximated from the reference
+    // screenshot as starting 43% of the way down the frame). Each raw gaze
+    // sample is classified into one of the three ROIs, "none" if it's on the
+    // video but above that band, or "offscreen" if it's outside the video
+    // entirely. Adds per-trial count/proportion columns plus which region
+    // was looked at first, directly onto the trial data so they show up as
+    // columns in the CSV sent to OSF.
+    const videoROIs = [
+      { name: 'left', start: 0, end: 1 / 3 },
+      { name: 'middle', start: 1 / 3, end: 2 / 3 },
+      { name: 'right', start: 2 / 3, end: 1 }
+    ];
+
+    // Fraction of the video's height, from the top, where the animal band
+    // begins. Adjust this if it doesn't line up with the actual videos.
+    const roiVerticalStart = 0.43;
+
+    function addROISummary(data) {
+      const rect = data.webgazer_targets && data.webgazer_targets['#stim-video'];
+      const gaze = data.webgazer_data;
+      if (!rect || !gaze) return;
+
+      const animalBandTop = rect.top + rect.height * roiVerticalStart;
+
+      const counts = { left: 0, middle: 0, right: 0, none: 0, offscreen: 0 };
+      let firstROI = null;
+      let firstROILatency = null;
+
+      for (const point of gaze) {
+        const onVideo =
+          point.x >= rect.left && point.x <= rect.right &&
+          point.y >= rect.top && point.y <= rect.bottom;
+
+        if (!onVideo) {
+          counts.offscreen++;
+          continue;
+        }
+
+        if (point.y < animalBandTop) {
+          counts.none++;
+          continue;
+        }
+
+        const fraction = (point.x - rect.left) / rect.width;
+        const roi = videoROIs.find((r) => fraction >= r.start && fraction < r.end) ?? videoROIs[videoROIs.length - 1];
+        counts[roi.name]++;
+
+        if (firstROI === null) {
+          firstROI = roi.name;
+          firstROILatency = point.t;
+        }
+      }
+
+      const total = gaze.length;
+      data.roi_left_count = counts.left;
+      data.roi_middle_count = counts.middle;
+      data.roi_right_count = counts.right;
+      data.roi_none_count = counts.none;
+      data.roi_offscreen_count = counts.offscreen;
+      data.roi_left_proportion = total ? counts.left / total : null;
+      data.roi_middle_proportion = total ? counts.middle / total : null;
+      data.roi_right_proportion = total ? counts.right / total : null;
+      data.roi_none_proportion = total ? counts.none / total : null;
+      data.roi_offscreen_proportion = total ? counts.offscreen / total : null;
+      data.roi_first_look = firstROI;
+      data.roi_first_look_latency_ms = firstROILatency;
+    }
+
     const videoTrials = videoFiles.map((video) => ({
       type: jsPsychHtmlKeyboardResponse,
       stimulus: `
@@ -305,7 +380,8 @@
           params: { targets: ['#stim-video'] }
         }
       ],
-      data: { task: 'video', video_file: video }
+      data: { task: 'video', video_file: video },
+      on_finish: addROISummary
     }));
 
     const videoBlock = {
@@ -350,4 +426,3 @@
     jsPsych.run(timeline);
   </script>
 </html>
-```
