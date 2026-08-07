@@ -47,11 +47,6 @@
   <script>
     const jsPsych = initJsPsych({
       extensions: [
-        // Default sampling_interval is 34ms (~30/sec). Coarsening it to
-        // 100ms (~10/sec) reduces how often we're separately polling
-        // getCurrentPrediction() on top of whatever WebGazer's own internal
-        // loop is doing to drive the live gaze-dot visualization, which
-        // should ease the lag reported during calibration/validation.
         { type: jsPsychExtensionWebgazer, params: { sampling_interval: 100 } }
       ]
     });
@@ -114,7 +109,7 @@
       type: jsPsychHtmlButtonResponse,
       stimulus: `
         <p>Now you'll calibrate the eye tracker, so the software can use the image of your eyes to predict where you're looking.</p>
-        <p>A series of images will appear on the screen. Look at each image and click on it.</p>
+        <p>A series of images will appear on the screen. Just look at each one - you don't need to click anything.</p>
       ` + labFooter,
       choices: ['Got it']
     };
@@ -122,37 +117,51 @@
     const calibrationImage = 'img/pinwheel.png';
 
     const calibrationTargets = [
-      { x: 25, y: 25 },
-      { x: 75, y: 25 },
+      { x: 25, y: 50 },
       { x: 50, y: 50 },
-      { x: 25, y: 75 },
-      { x: 75, y: 75 }
+      { x: 75, y: 50 }
     ];
+
+    const calibrationTimeToSaccade = 1000;
+    const calibrationTimePerPoint = 1000;
 
     function makeCalibrationPoint(x, y) {
       return {
-        type: jsPsychHtmlButtonResponse,
+        type: jsPsychHtmlKeyboardResponse,
         stimulus: '',
-        choices: [''],
+        choices: "NO_KEYS",
+        trial_duration: calibrationTimeToSaccade + calibrationTimePerPoint,
         on_load: function () {
-          const btn = document.querySelector('.jspsych-btn');
-          btn.style.position = 'absolute';
-          btn.style.left = x + '%';
-          btn.style.top = y + '%';
-          btn.style.width = '170px';
-          btn.style.height = '170px';
-          btn.style.background = `url('${calibrationImage}') no-repeat center / 110px 110px`;
-          btn.style.border = 'none';
-          btn.style.padding = '0';
-          btn.style.cursor = 'pointer';
-          btn.style.animation = 'spin-pinwheel 2s linear infinite';
-          btn.style.zIndex = '2147483647';
+          const stimEl = document.querySelector('#jspsych-html-keyboard-response-stimulus');
+          const dot = document.createElement('div');
+          dot.style.position = 'absolute';
+          dot.style.left = x + '%';
+          dot.style.top = y + '%';
+          dot.style.transform = 'translate(-50%, -50%)';
+          dot.style.width = '170px';
+          dot.style.height = '170px';
+          dot.style.background = `url('${calibrationImage}') no-repeat center / 110px 110px`;
+          dot.style.animation = 'spin-pinwheel 2s linear infinite';
+          dot.style.zIndex = '2147483647';
+          stimEl.appendChild(dot);
+
+          const px = Math.round((x / 100) * window.innerWidth);
+          const py = Math.round((y / 100) * window.innerHeight);
+          const recordStart = performance.now() + calibrationTimeToSaccade;
+          const recordEnd = recordStart + calibrationTimePerPoint;
+
+          (function watchPoint() {
+            const now = performance.now();
+            if (now >= recordStart) {
+              jsPsych.extensions.webgazer.calibratePoint(px, py);
+            }
+            if (now < recordEnd) {
+              requestAnimationFrame(watchPoint);
+            }
+          })();
         },
         on_finish: function () {
           playDing();
-          const px = Math.round((x / 100) * window.innerWidth);
-          const py = Math.round((y / 100) * window.innerHeight);
-          jsPsych.extensions.webgazer.calibratePoint(px, py);
         }
       };
     }
@@ -273,25 +282,12 @@
       };
     }
 
-    // ---------- Regions of interest: left / middle / right thirds of the video ----------
-    // Splits the #stim-video bounding box (recorded by the webgazer extension
-    // as webgazer_targets) into three equal horizontal bands, restricted to
-    // the vertical band where the animals actually sit (below the awning/
-    // light-beam area at the top - approximated from the reference
-    // screenshot as starting 43% of the way down the frame). Each raw gaze
-    // sample is classified into one of the three ROIs, "none" if it's on the
-    // video but above that band, or "offscreen" if it's outside the video
-    // entirely. Adds per-trial count/proportion columns plus which region
-    // was looked at first, directly onto the trial data so they show up as
-    // columns in the CSV sent to OSF.
     const videoROIs = [
       { name: 'left', start: 0, end: 1 / 3 },
       { name: 'middle', start: 1 / 3, end: 2 / 3 },
       { name: 'right', start: 2 / 3, end: 1 }
     ];
 
-    // Fraction of the video's height, from the top, where the animal band
-    // begins. Adjust this if it doesn't line up with the actual videos.
     const roiVerticalStart = 0.43;
 
     function addROISummary(data) {
